@@ -1,0 +1,40 @@
+#!/bin/bash
+
+websites_file="websites"
+
+# Function to output colored text
+print_colored_text() {
+    local color=$1
+    local text=$2
+    echo -e "\e[${color}m${text}\e[0m"
+}
+
+while IFS= read -r website || [[ -n "$website" ]]; do
+    echo "Checking SSL Labs Grade for $website..."
+    response=$(curl -s "https://api.ssllabs.com/api/v3/analyze?host=$website")
+    
+    # Wait until the SSL Labs analysis is complete
+    while [ "$(echo "$response" | jq -r '.status')" != "READY" ]; do
+        sleep 5
+        response=$(curl -s "https://api.ssllabs.com/api/v3/analyze?host=$website")
+    done
+    
+    # Extract the SSL Labs grade for the website
+    grade=$(echo "$response" | jq -r '.endpoints[0].grade')
+
+    # Color code the output based on the grade
+    case $grade in
+        "A+" | "A")
+            print_colored_text "32" "SSL Labs Grade for $website: $grade"  # Green color
+            ;;
+        "B")
+            print_colored_text "33" "SSL Labs Grade for $website: $grade"  # Yellow color
+            ;;
+        *)
+            print_colored_text "31" "SSL Labs Grade for $website: $grade"  # Red color
+            ;;
+    esac
+
+    echo
+
+done < "$websites_file"
